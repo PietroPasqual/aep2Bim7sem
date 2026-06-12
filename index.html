@@ -1,0 +1,1470 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#11302a">
+<title>IMC+ · Calculadora de Saúde</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Instrument+Sans:wght@400;500;600&family=Spline+Sans+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ═══════════════════════════════════════════
+     SISTEMA DE DESIGN — "Instrumento de medida"
+     Identidade: régua, leitura, espectro do IMC
+     ═══════════════════════════════════════════ */
+  :root {
+    /* Paleta — verde ODS 3 sobre papel mentolado */
+    --paper:      #f3f7f4;   /* fundo geral */
+    --card:       #fdfefd;   /* superfície dos cartões */
+    --line:       #dbe6de;   /* bordas e divisórias */
+    --ink:        #11302a;   /* texto principal (pinho profundo) */
+    --ink-soft:   #44615a;   /* texto secundário */
+    --ink-muted:  #7d958d;   /* legendas e rótulos */
+    --green:      #1f8a4c;   /* ação principal (verde ODS 3) */
+    --green-deep: #14633a;
+    --green-soft: #e3f2e8;
+    --danger:     #d6453a;
+
+    /* Espectro de categorias do IMC */
+    --cat-low:    #3aa3c9;
+    --cat-normal: #2fa45c;
+    --cat-over:   #dfa018;
+    --cat-obese1: #e3722a;
+    --cat-obese2: #d6453a;
+    --cat-obese3: #8e2620;
+
+    /* Tipografia */
+    --font-display: 'Sora', sans-serif;          /* títulos */
+    --font-body:    'Instrument Sans', sans-serif; /* texto corrido */
+    --font-mono:    'Spline Sans Mono', monospace; /* valores medidos */
+
+    --radius: 18px;
+    --radius-sm: 12px;
+    --shadow: 0 2px 16px rgba(17,48,42,0.07);
+    --shadow-lg: 0 14px 40px rgba(17,48,42,0.16);
+
+    /* Cor dinâmica da categoria atual (definida via JS) */
+    --cat-color: var(--cat-normal);
+    --cat-tint:  #2fa45c18;
+
+    /* Régua decorativa — traços a cada 12px, traço maior a cada 60px */
+    --ruler:
+      repeating-linear-gradient(90deg, var(--line) 0 2px, transparent 2px 60px),
+      repeating-linear-gradient(90deg, color-mix(in srgb, var(--line) 55%, transparent) 0 1px, transparent 1px 12px);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--paper);
+    color: var(--ink);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0 0 64px;
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--green);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  /* ── CABEÇALHO ── */
+  .app-header {
+    width: 100%;
+    background: var(--card);
+    border-bottom: 1px solid var(--line);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+  }
+
+  .app-logo {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 20px;
+    letter-spacing: -0.5px;
+  }
+
+  .app-logo span { color: var(--green); }
+
+  .ods-tag {
+    margin-left: auto;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--green-deep);
+    background: var(--green-soft);
+    border: 1px solid color-mix(in srgb, var(--green) 30%, transparent);
+    padding: 4px 10px;
+    border-radius: 100px;
+    letter-spacing: 0.04em;
+  }
+
+  /* ── ENVOLTÓRIO ── */
+  .phone {
+    width: 100%;
+    max-width: 430px;
+    padding: 0 16px;
+    margin-top: 26px;
+  }
+
+  /* ── TELAS ── */
+  .screen { display: none; }
+  .screen.active { display: block; animation: slideUp 0.35s cubic-bezier(0.3,1.1,0.6,1); }
+
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── CARTÕES ── */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 26px;
+    box-shadow: var(--shadow);
+    margin-bottom: 16px;
+  }
+
+  /* ── HERO: a régua é a identidade ── */
+  .hero-card {
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .hero-ruler {
+    height: 26px;
+    border-bottom: 1px solid var(--line);
+    background-image: var(--ruler);
+    background-position: bottom;
+    background-repeat: repeat-x;
+    background-size: auto 14px, auto 8px;
+  }
+
+  .hero-body { padding: 26px 26px 28px; }
+
+  .hero-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--green);
+    margin-bottom: 10px;
+  }
+
+  .hero-card h1 {
+    font-family: var(--font-display);
+    font-size: 30px;
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    margin-bottom: 10px;
+  }
+
+  .hero-card h1 em {
+    font-style: normal;
+    color: var(--green);
+  }
+
+  .hero-card p {
+    font-size: 14.5px;
+    color: var(--ink-soft);
+    line-height: 1.65;
+    max-width: 320px;
+  }
+
+  .hero-formula {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-top: 16px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink-soft);
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 100px;
+    padding: 7px 14px;
+  }
+
+  .hero-formula b { color: var(--ink); font-weight: 700; }
+  .hero-formula sup { font-size: 9px; }
+
+  /* ── FORMULÁRIO ── */
+  .field { margin-bottom: 18px; }
+
+  .field-label {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ink-muted);
+    margin-bottom: 8px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .field-row {
+    display: flex;
+    align-items: center;
+    background: var(--paper);
+    border: 1.5px solid var(--line);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    transition: border-color 0.2s, background 0.2s;
+  }
+
+  .field-row:focus-within { border-color: var(--green); background: var(--card); }
+  .field-row.error { border-color: var(--danger); }
+
+  .field-row input {
+    flex: 1;
+    min-width: 0;
+    padding: 13px 16px;
+    font-size: 22px;
+    font-family: var(--font-mono);
+    font-weight: 600;
+    color: var(--ink);
+    background: transparent;
+    border: none;
+    outline: none;
+  }
+
+  .field-row input::placeholder { color: #b9cabf; font-weight: 500; }
+
+  .field-unit {
+    padding: 0 16px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink-muted);
+    white-space: nowrap;
+    border-left: 1px dashed var(--line);
+    align-self: stretch;
+    display: flex;
+    align-items: center;
+  }
+
+  .field-error {
+    font-size: 12.5px;
+    color: var(--danger);
+    margin-top: 6px;
+    display: none;
+    font-weight: 500;
+  }
+
+  .field-error.visible { display: block; }
+
+  /* ── ALTERNADOR (unidade / sexo) ── */
+  .unit-toggle {
+    display: flex;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    padding: 4px;
+    margin-bottom: 20px;
+    gap: 4px;
+  }
+
+  .unit-btn {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: var(--font-body);
+    cursor: pointer;
+    color: var(--ink-muted);
+    background: transparent;
+    transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+  }
+
+  .unit-btn.active {
+    background: var(--ink);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(17,48,42,0.25);
+  }
+
+  /* ── BOTÕES ── */
+  .btn-primary {
+    width: 100%;
+    padding: 16px;
+    background: var(--green);
+    color: white;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-display);
+    font-size: 15.5px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.01em;
+    transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .btn-primary:hover {
+    background: var(--green-deep);
+    transform: translateY(-1px);
+    box-shadow: 0 8px 22px rgba(31,138,76,0.32);
+  }
+  .btn-primary:active { transform: translateY(0); }
+
+  /* ── TELA DE RESULTADO ── */
+  .imc-display {
+    text-align: center;
+    padding: 30px 26px 26px;
+    background:
+      linear-gradient(var(--cat-tint), transparent 65%),
+      var(--card);
+    border: 1px solid var(--line);
+    border-top: 4px solid var(--cat-color);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    margin-bottom: 16px;
+    transition: border-color 0.4s;
+  }
+
+  .imc-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--ink-muted);
+    margin-bottom: 4px;
+  }
+
+  .imc-value {
+    font-family: var(--font-mono);
+    font-size: 76px;
+    font-weight: 700;
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+    color: var(--cat-color);
+    margin-bottom: 4px;
+    font-variant-numeric: tabular-nums;
+    transition: color 0.4s;
+  }
+
+  .imc-category {
+    font-family: var(--font-display);
+    font-size: 19px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  .imc-range {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    color: var(--ink-muted);
+  }
+
+  /* ── ESCALA: régua com valores de corte reais ── */
+  .scale-container {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 22px 26px 26px;
+    box-shadow: var(--shadow);
+    margin-bottom: 16px;
+  }
+
+  .scale-title {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--ink-muted);
+    margin-bottom: 18px;
+  }
+
+  .scale-track { position: relative; }
+
+  .scale-bar {
+    height: 12px;
+    border-radius: 100px;
+    background: linear-gradient(to right,
+      var(--cat-low)    0%,  var(--cat-low)    11%,
+      var(--cat-normal) 11%, var(--cat-normal) 36%,
+      var(--cat-over)   36%, var(--cat-over)   51%,
+      var(--cat-obese1) 51%, var(--cat-obese1) 63%,
+      var(--cat-obese2) 63%, var(--cat-obese2) 80%,
+      var(--cat-obese3) 80%, var(--cat-obese3) 100%
+    );
+    position: relative;
+  }
+
+  .scale-pointer {
+    position: absolute;
+    top: -4px;
+    left: 20%;
+    width: 20px; height: 20px;
+    background: var(--ink);
+    border: 3.5px solid var(--card);
+    border-radius: 50%;
+    box-shadow: 0 2px 10px rgba(17,48,42,0.35);
+    transform: translateX(-50%);
+    transition: left 0.7s cubic-bezier(0.3,1.1,0.5,1);
+  }
+
+  /* Ticks com os pontos de corte do IMC (18,5 / 25 / 30 / 35 / 40) */
+  .scale-ticks {
+    position: relative;
+    height: 26px;
+    margin-top: 2px;
+  }
+
+  .scale-ticks span {
+    position: absolute;
+    top: 0;
+    transform: translateX(-50%);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    font-weight: 600;
+    color: var(--ink-muted);
+    padding-top: 8px;
+  }
+
+  .scale-ticks span::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 1.5px;
+    height: 6px;
+    background: var(--ink-muted);
+    transform: translateX(-50%);
+  }
+
+  .scale-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    margin-top: 10px;
+  }
+
+  .scale-legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--ink-soft);
+  }
+
+  .scale-legend i {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* ── ESTATÍSTICAS ── */
+  .stats-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .stat-card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    padding: 16px;
+    box-shadow: var(--shadow);
+    text-align: center;
+  }
+
+  .stat-value {
+    font-family: var(--font-mono);
+    font-size: 21px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stat-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--ink-muted);
+    font-weight: 600;
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  /* ── RECOMENDAÇÕES ── */
+  .recs-card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 22px 26px;
+    box-shadow: var(--shadow);
+    margin-bottom: 16px;
+  }
+
+  .recs-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  .recs-icon {
+    width: 36px; height: 36px;
+    background: var(--green-soft);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
+  }
+
+  .recs-title {
+    font-family: var(--font-display);
+    font-size: 17px;
+    font-weight: 700;
+  }
+
+  .rec-item {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 12px 0;
+    border-bottom: 1px dashed var(--line);
+  }
+
+  .rec-item:last-child { border-bottom: none; padding-bottom: 0; }
+
+  .rec-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--cat-color);
+    flex-shrink: 0;
+    margin-top: 7px;
+    transition: background 0.4s;
+  }
+
+  .rec-text {
+    font-size: 14px;
+    line-height: 1.65;
+    color: var(--ink-soft);
+  }
+
+  /* ── ASSISTENTE DE IA ── */
+  .ai-card {
+    background: linear-gradient(150deg, #0e2b23 0%, #164534 100%);
+    border-radius: var(--radius);
+    padding: 24px 26px;
+    box-shadow: var(--shadow-lg);
+    margin-bottom: 16px;
+    color: #eef6f1;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* régua sutil no topo do cartão escuro */
+  .ai-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 12px;
+    background-image:
+      repeating-linear-gradient(90deg, rgba(255,255,255,0.22) 0 2px, transparent 2px 60px),
+      repeating-linear-gradient(90deg, rgba(255,255,255,0.1) 0 1px, transparent 1px 12px);
+    background-position: top;
+    background-repeat: repeat-x;
+    background-size: auto 12px, auto 7px;
+    pointer-events: none;
+  }
+
+  .ai-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 8px 0 12px;
+  }
+
+  .ai-title {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 16px;
+  }
+
+  .ai-badge {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    background: rgba(95,210,150,0.16);
+    border: 1px solid rgba(95,210,150,0.4);
+    padding: 3px 10px;
+    border-radius: 100px;
+    letter-spacing: 0.1em;
+    color: #7fe0ab;
+  }
+
+  .ai-hint {
+    font-size: 13.5px;
+    color: rgba(238,246,241,0.65);
+    margin-bottom: 14px;
+    line-height: 1.6;
+  }
+
+  .ai-question-area {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    font-size: 14px;
+    font-family: var(--font-body);
+    color: #eef6f1;
+    width: 100%;
+    outline: none;
+    resize: none;
+    min-height: 60px;
+    transition: border-color 0.2s;
+  }
+
+  .ai-question-area::placeholder { color: rgba(238,246,241,0.35); }
+  .ai-question-area:focus { border-color: rgba(127,224,171,0.6); }
+
+  .ai-suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin: 12px 0;
+  }
+
+  .ai-sug {
+    font-size: 12px;
+    padding: 6px 12px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.16);
+    border-radius: 100px;
+    color: rgba(238,246,241,0.82);
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
+    font-family: var(--font-body);
+    font-weight: 500;
+  }
+
+  .ai-sug:hover {
+    background: rgba(95,210,150,0.18);
+    border-color: rgba(95,210,150,0.45);
+    color: #fff;
+  }
+
+  .btn-ai {
+    width: 100%;
+    padding: 14px;
+    background: var(--green);
+    color: white;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-display);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s, opacity 0.2s;
+    margin-top: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .btn-ai:hover:not(:disabled) { background: #25a35c; }
+  .btn-ai:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .ai-response {
+    background: rgba(255,255,255,0.06);
+    border-radius: var(--radius-sm);
+    padding: 16px;
+    font-size: 14px;
+    line-height: 1.7;
+    color: rgba(238,246,241,0.9);
+    margin-top: 14px;
+    display: none;
+    border-left: 3px solid #7fe0ab;
+  }
+
+  .ai-response.visible { display: block; animation: slideUp 0.3s ease; }
+  .ai-response .ai-error { color: #ffb3ab; }
+
+  .ai-spinner {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    color: rgba(238,246,241,0.6);
+    font-size: 13px;
+    margin-top: 12px;
+    justify-content: center;
+  }
+
+  .ai-spinner.visible { display: flex; }
+
+  .dots { display: flex; gap: 4px; }
+  .dots span {
+    width: 6px; height: 6px;
+    background: #7fe0ab;
+    border-radius: 50%;
+    animation: blink 1.2s infinite;
+  }
+  .dots span:nth-child(2) { animation-delay: 0.2s; }
+  .dots span:nth-child(3) { animation-delay: 0.4s; }
+
+  @keyframes blink {
+    0%, 80%, 100% { opacity: 0.3; transform: scale(0.7); }
+    40% { opacity: 1; transform: scale(1); }
+  }
+
+  /* ── AVISO ── */
+  .disclaimer {
+    font-size: 12px;
+    color: var(--ink-muted);
+    text-align: center;
+    line-height: 1.6;
+    padding: 0 4px;
+    margin-bottom: 16px;
+  }
+
+  .disclaimer strong { color: var(--ink-soft); }
+
+  /* ── VOLTAR ── */
+  .back-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    color: var(--green-deep);
+    background: none;
+    border: none;
+    font-family: var(--font-body);
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 18px;
+    padding: 4px 0;
+  }
+
+  .back-row:hover { opacity: 0.7; }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="app-logo">IMC<span>+</span></div>
+  <div class="ods-tag">ODS 3 · Saúde e Bem-Estar</div>
+</header>
+
+<main class="phone">
+
+  <!-- ══ TELA: ENTRADA ══ -->
+  <section id="screen-input" class="screen active" aria-label="Formulário de cálculo">
+
+    <div class="card hero-card">
+      <div class="hero-ruler" aria-hidden="true"></div>
+      <div class="hero-body">
+        <div class="hero-eyebrow">Índice de Massa Corporal</div>
+        <h1>Sua medida,<br>seu ponto de <em>partida</em>.</h1>
+        <p>Calcule seu IMC e receba orientações de saúde adequadas ao seu resultado.</p>
+        <div class="hero-formula" aria-label="Fórmula: IMC igual a peso dividido por altura ao quadrado">
+          <b>IMC</b> = peso ÷ altura<sup>2</sup>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="unit-toggle" role="group" aria-label="Sistema de unidades">
+        <button type="button" class="unit-btn active" data-unit="metric" aria-pressed="true">kg / cm</button>
+        <button type="button" class="unit-btn" data-unit="imperial" aria-pressed="false">lb / ft</button>
+      </div>
+
+      <div class="field">
+        <label class="field-label" for="input-peso">Peso</label>
+        <div class="field-row" id="row-peso">
+          <input type="text" id="input-peso" placeholder="70" inputmode="decimal" autocomplete="off"
+                 aria-describedby="err-peso" />
+          <span class="field-unit" id="unit-peso">kg</span>
+        </div>
+        <div class="field-error" id="err-peso" role="alert"></div>
+      </div>
+
+      <div class="field">
+        <label class="field-label" for="input-altura">Altura</label>
+        <div class="field-row" id="row-altura">
+          <input type="text" id="input-altura" placeholder="170" inputmode="decimal" autocomplete="off"
+                 aria-describedby="err-altura" />
+          <span class="field-unit" id="unit-altura">cm</span>
+        </div>
+        <div class="field-error" id="err-altura" role="alert"></div>
+      </div>
+
+      <div class="field">
+        <label class="field-label" for="input-idade">Idade</label>
+        <div class="field-row" id="row-idade">
+          <input type="text" id="input-idade" placeholder="25" inputmode="numeric" autocomplete="off"
+                 aria-describedby="err-idade" />
+          <span class="field-unit">anos</span>
+        </div>
+        <div class="field-error" id="err-idade" role="alert"></div>
+      </div>
+
+      <div class="field" style="margin-bottom:24px">
+        <span class="field-label" id="label-sexo">Sexo biológico</span>
+        <div class="unit-toggle" role="group" aria-labelledby="label-sexo" style="margin-bottom:0">
+          <button type="button" class="unit-btn active" data-sexo="M" aria-pressed="true">Masculino</button>
+          <button type="button" class="unit-btn" data-sexo="F" aria-pressed="false">Feminino</button>
+        </div>
+      </div>
+
+      <button type="button" class="btn-primary" id="btn-calcular">
+        <span>Calcular IMC</span>
+        <span aria-hidden="true">→</span>
+      </button>
+    </div>
+
+    <p class="disclaimer">
+      <strong>⚕️ Atenção:</strong> Este aplicativo é apenas informativo e não substitui a avaliação de um médico ou nutricionista.
+    </p>
+  </section>
+
+  <!-- ══ TELA: RESULTADO ══ -->
+  <section id="screen-result" class="screen" aria-label="Resultado do cálculo">
+
+    <button type="button" class="back-row" id="btn-voltar">
+      <span aria-hidden="true">←</span> Calcular novamente
+    </button>
+
+    <!-- Leitura do IMC -->
+    <div class="imc-display">
+      <div class="imc-label">Sua leitura</div>
+      <div class="imc-value" id="imc-valor">--</div>
+      <div class="imc-category" id="imc-categoria">--</div>
+      <div class="imc-range" id="imc-range">--</div>
+    </div>
+
+    <!-- Escala (régua com pontos de corte) -->
+    <div class="scale-container">
+      <div class="scale-title">Escala de IMC · kg/m²</div>
+      <div class="scale-track">
+        <div class="scale-bar">
+          <div class="scale-pointer" id="scale-pointer"></div>
+        </div>
+        <div class="scale-ticks" aria-hidden="true">
+          <span style="left:11%">18,5</span>
+          <span style="left:36%">25</span>
+          <span style="left:51%">30</span>
+          <span style="left:63%">35</span>
+          <span style="left:80%">40</span>
+        </div>
+      </div>
+      <div class="scale-legend" aria-hidden="true">
+        <span><i style="background:var(--cat-low)"></i>Abaixo</span>
+        <span><i style="background:var(--cat-normal)"></i>Normal</span>
+        <span><i style="background:var(--cat-over)"></i>Sobrepeso</span>
+        <span><i style="background:var(--cat-obese1)"></i>Obesidade I–III</span>
+      </div>
+    </div>
+
+    <!-- Estatísticas -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-value" id="stat-peso">--</div>
+        <div class="stat-label">Peso</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="stat-altura">--</div>
+        <div class="stat-label">Altura</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="stat-ideal-min">--</div>
+        <div class="stat-label">Peso ideal mín.</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="stat-ideal-max">--</div>
+        <div class="stat-label">Peso ideal máx.</div>
+      </div>
+    </div>
+
+    <!-- Recomendações -->
+    <div class="recs-card">
+      <div class="recs-header">
+        <div class="recs-icon" aria-hidden="true">💡</div>
+        <div class="recs-title">Recomendações</div>
+      </div>
+      <div id="recs-list"></div>
+    </div>
+
+    <!-- Assistente de IA -->
+    <div class="ai-card">
+      <div class="ai-header">
+        <span style="font-size:18px" aria-hidden="true">🤖</span>
+        <span class="ai-title">Assistente de Saúde</span>
+        <span class="ai-badge">IA</span>
+      </div>
+      <p class="ai-hint">
+        Faça uma pergunta sobre saúde, alimentação ou atividade física relacionada ao seu resultado.
+      </p>
+
+      <div class="ai-suggestions" id="ai-suggestions"></div>
+
+      <textarea class="ai-question-area" id="ai-input" rows="2"
+                placeholder="Ex: Quais alimentos devo priorizar?"
+                aria-label="Sua pergunta para o assistente"></textarea>
+      <button type="button" class="btn-ai" id="ai-btn">
+        <span>Perguntar ao Assistente</span>
+        <span aria-hidden="true">✦</span>
+      </button>
+
+      <div class="ai-spinner" id="ai-spinner">
+        <div class="dots" aria-hidden="true"><span></span><span></span><span></span></div>
+        Analisando seu perfil...
+      </div>
+
+      <div class="ai-response" id="ai-response" aria-live="polite"></div>
+    </div>
+
+    <p class="disclaimer">
+      <strong>⚕️ Importante:</strong> As orientações acima são de caráter educativo e geral. Consulte sempre um profissional de saúde antes de iniciar qualquer dieta ou programa de exercícios.
+    </p>
+  </section>
+
+</main>
+
+<script>
+'use strict';
+
+// Atalho para getElementById
+const $ = (id) => document.getElementById(id);
+
+// ═══════════════════════════════════════════
+// ESTADO DA APLICAÇÃO (Máquina de Estados)
+// Fluxo: INPUT → VALIDATING → RESULT ⇄ AI_QUERY
+// ═══════════════════════════════════════════
+const AppState = {
+  STATES: { INPUT: 'input', VALIDATING: 'validating', RESULT: 'result', AI_QUERY: 'ai_query' },
+  current: 'input',
+  data: { unit: 'metric', sexo: 'M' },
+  result: null,
+
+  // Transições permitidas entre estados
+  transition(next) {
+    const allowed = {
+      input:      ['validating'],
+      validating: ['input', 'result'],
+      result:     ['input', 'ai_query'],
+      ai_query:   ['result'],
+    };
+    if (allowed[this.current]?.includes(next)) {
+      this.current = next;
+      return true;
+    }
+    console.warn(`Transição inválida: ${this.current} → ${next}`);
+    return false;
+  }
+};
+
+// ═══════════════════════════════════════════
+// VALIDAÇÃO COM EXPRESSÕES REGULARES
+// Aceita vírgula ou ponto como separador decimal
+// ═══════════════════════════════════════════
+const Validators = {
+  PESO:      /^[1-9]\d{0,2}(?:\.\d)?$/,         // 1–999, até 1 casa decimal
+  ALTURA_CM: /^[1-9]\d{1,2}(?:\.\d)?$/,         // 10–999, até 1 casa decimal
+  ALTURA_FT: /^[1-9](?:\.\d{1,2})?$/,           // 1–9.99
+  IDADE:     /^(?:[1-9]|[1-9]\d|1[01]\d|120)$/, // 1–120, inteiro
+
+  // Normaliza "70,5" → "70.5" para validação e parseFloat
+  normalize(value) {
+    return String(value).trim().replace(',', '.');
+  },
+
+  validate(field, rawValue, unit) {
+    const value = this.normalize(rawValue);
+    if (!value) return { valid: false, msg: 'Campo obrigatório.' };
+
+    if (field === 'peso') {
+      if (!this.PESO.test(value)) {
+        return { valid: false, msg: `Peso inválido. Digite um número como 70${unit === 'metric' ? '' : ' (em lb)'}.` };
+      }
+      const n = parseFloat(value);
+      if (unit === 'metric' && (n < 10 || n > 500))
+        return { valid: false, msg: 'Peso fora do intervalo válido (10–500 kg).' };
+      if (unit === 'imperial' && (n < 22 || n > 999))
+        return { valid: false, msg: 'Peso fora do intervalo válido (22–999 lb).' };
+    }
+
+    if (field === 'altura') {
+      const re = unit === 'metric' ? this.ALTURA_CM : this.ALTURA_FT;
+      if (!re.test(value)) {
+        return { valid: false, msg: unit === 'metric' ? 'Altura inválida. Digite em cm (ex: 170).' : 'Altura inválida. Digite em ft (ex: 5.7).' };
+      }
+      const n = parseFloat(value);
+      if (unit === 'metric' && (n < 50 || n > 250))
+        return { valid: false, msg: 'Altura fora do intervalo válido (50–250 cm).' };
+      if (unit === 'imperial' && (n < 1.5 || n > 8.2))
+        return { valid: false, msg: 'Altura fora do intervalo válido (1.5–8.2 ft).' };
+    }
+
+    if (field === 'idade' && !this.IDADE.test(value)) {
+      return { valid: false, msg: 'Idade inválida. Digite entre 1 e 120 anos.' };
+    }
+
+    return { valid: true };
+  }
+};
+
+// ═══════════════════════════════════════════
+// ÁRVORE DE DECISÃO — Classificação do IMC
+// ═══════════════════════════════════════════
+const DecisionTree = {
+  // Faixas adultas mapeadas para a posição (%) na barra da escala.
+  // Os limites de % correspondem aos pontos de corte do gradiente CSS.
+  ADULT_SEGMENTS: [
+    { max: 18.5, cat: 'Abaixo do Peso',     hex: '#3aa3c9', range: '< 18.5',      risco: 'baixo',      pIni: 0,  pFim: 11,  imcIni: 14,   imcFim: 18.5 },
+    { max: 25.0, cat: 'Peso Normal',        hex: '#2fa45c', range: '18.5 – 24.9', risco: 'normal',     pIni: 11, pFim: 36,  imcIni: 18.5, imcFim: 25 },
+    { max: 30.0, cat: 'Sobrepeso',          hex: '#dfa018', range: '25.0 – 29.9', risco: 'moderado',   pIni: 36, pFim: 51,  imcIni: 25,   imcFim: 30 },
+    { max: 35.0, cat: 'Obesidade Grau I',   hex: '#e3722a', range: '30.0 – 34.9', risco: 'alto',       pIni: 51, pFim: 63,  imcIni: 30,   imcFim: 35 },
+    { max: 40.0, cat: 'Obesidade Grau II',  hex: '#d6453a', range: '35.0 – 39.9', risco: 'muito alto', pIni: 63, pFim: 80,  imcIni: 35,   imcFim: 40 },
+    { max: Infinity, cat: 'Obesidade Grau III', hex: '#8e2620', range: '≥ 40.0',  risco: 'extremo',    pIni: 80, pFim: 100, imcIni: 40,   imcFim: 50 },
+  ],
+
+  classify(imc, idade) {
+    // Nó raiz da árvore: adulto ou menor de idade
+    if (idade < 18) return this._classifyChild(imc);
+
+    const seg = this.ADULT_SEGMENTS.find(s => imc < s.max) || this.ADULT_SEGMENTS.at(-1);
+    return { ...seg, posPonteiro: this._pointerPos(imc, seg) };
+  },
+
+  // Interpola a posição do ponteiro dentro do segmento da escala
+  _pointerPos(imc, seg) {
+    const t = Math.min(1, Math.max(0, (imc - seg.imcIni) / (seg.imcFim - seg.imcIni)));
+    return Math.round(seg.pIni + t * (seg.pFim - seg.pIni));
+  },
+
+  // Classificação simplificada para menores de 18 anos
+  _classifyChild(imc) {
+    if (imc < 16)   return { cat: 'Muito Abaixo do Peso', hex: '#3aa3c9', range: '< 16',        risco: 'baixo',    posPonteiro: 3 };
+    if (imc < 18.5) return { cat: 'Abaixo do Peso',       hex: '#3aa3c9', range: '< 18.5',      risco: 'baixo',    posPonteiro: 7 };
+    if (imc < 24)   return { cat: 'Peso Adequado',        hex: '#2fa45c', range: '18.5 – 23.9', risco: 'normal',   posPonteiro: 22 };
+    if (imc < 28)   return { cat: 'Sobrepeso',            hex: '#dfa018', range: '24 – 27.9',   risco: 'moderado', posPonteiro: 44 };
+    return            { cat: 'Obesidade',                 hex: '#d6453a', range: '≥ 28',        risco: 'alto',     posPonteiro: 65 };
+  },
+
+  getRecommendations(classificacao, idade) {
+    const base = {
+      'Abaixo do Peso': [
+        'Aumente o consumo calórico com alimentos nutritivos como abacate, castanhas, ovos e carnes magras.',
+        'Realize refeições a cada 3–4 horas, incluindo lanches saudáveis entre as principais refeições.',
+        'Pratique exercícios de resistência (musculação) para ganho de massa muscular saudável.',
+        'Consulte um nutricionista para um plano alimentar personalizado e um médico para descartar causas subjacentes.',
+        'Evite dietas restritivas ou saltar refeições.'
+      ],
+      'Muito Abaixo do Peso': [
+        'Procure avaliação médica com urgência para investigar possíveis causas.',
+        'Acompanhamento nutricional intensivo é essencial.',
+        'Não inicie exercícios intensos antes de estabilizar o estado nutricional.',
+        'Refeições frequentes e alimentos de alta densidade energética são prioritários.'
+      ],
+      'Peso Normal': [
+        'Parabéns! Mantenha seu peso com uma alimentação equilibrada: frutas, verduras, proteínas e grãos integrais.',
+        'Pratique pelo menos 150 min/semana de atividade física moderada (caminhada, natação, ciclismo).',
+        'Evite o consumo excessivo de alimentos ultraprocessados, açúcar e sódio.',
+        'Realize exames preventivos anuais mesmo estando no peso ideal.',
+        'Mantenha boa hidratação: pelo menos 2 litros de água por dia.'
+      ],
+      'Peso Adequado': [
+        'Seu peso está adequado para a sua faixa etária.',
+        'Mantenha hábitos saudáveis com atividade física regular e alimentação variada.',
+        'Acompanhe seu desenvolvimento com seu pediatra regularmente.'
+      ],
+      'Sobrepeso': [
+        'Reduza o consumo de alimentos ultraprocessados, frituras e bebidas açucaradas.',
+        'Aumente a ingestão de fibras: vegetais, leguminosas e grãos integrais auxiliam na saciedade.',
+        'Estabeleça uma rotina de atividade física: 30 min de caminhada rápida diária já é eficaz.',
+        'Controle as porções das refeições e evite comer na frente de telas.',
+        'Consulte um médico para avaliar fatores de risco como pressão alta e glicemia.'
+      ],
+      'Obesidade Grau I': [
+        'Adote um déficit calórico moderado com orientação de nutricionista — evite dietas restritivas sem supervisão.',
+        'Priorize atividades físicas de baixo impacto: natação, caminhada e ciclismo são excelentes opções.',
+        'Monitore regularmente pressão arterial, glicemia e colesterol.',
+        'Reduza o consumo de sal, açúcar e gorduras saturadas.',
+        'Considere apoio psicológico — mudança de hábitos é um processo que envolve fatores emocionais.'
+      ],
+      'Obesidade Grau II': [
+        'Acompanhamento médico e nutricional regular é fundamental.',
+        'O risco cardiovascular é alto — avalie com seu médico a necessidade de exames específicos.',
+        'Atividade física deve ser iniciada de forma gradual com orientação profissional.',
+        'Intervenção multidisciplinar (médico, nutricionista, psicólogo, educador físico) é a abordagem mais eficaz.',
+        'Evite o consumo de álcool e cigarro, que amplificam os riscos associados.'
+      ],
+      'Obesidade Grau III': [
+        'Busque avaliação médica imediata — este nível de IMC é classificado como obesidade mórbida.',
+        'Tratamento multidisciplinar intensivo é necessário, podendo incluir cirurgia bariátrica avaliada por especialista.',
+        'Qualquer atividade física deve ser iniciada somente com liberação médica.',
+        'Cuide da saúde mental — a obesidade grave frequentemente está associada a quadros de ansiedade e depressão.',
+        'Apoio familiar e de grupos de suporte pode ser determinante no processo de tratamento.'
+      ],
+      'Obesidade': [
+        'Procure acompanhamento com pediatra e nutricionista para um plano adequado à fase de crescimento.',
+        'Priorize atividades físicas divertidas e regulares: esportes, dança, bicicleta.',
+        'Reduza bebidas açucaradas e alimentos ultraprocessados no dia a dia.',
+        'Envolva a família — mudanças de hábito funcionam melhor quando todos participam.'
+      ],
+    };
+
+    let recs = base[classificacao] || base['Peso Normal'];
+
+    // Personalização adicional por faixa etária
+    if (idade >= 60) {
+      recs = [...recs, 'Para sua faixa etária, exercícios de equilíbrio e fortalecimento muscular são especialmente importantes para prevenir quedas.'];
+    } else if (idade < 18) {
+      recs = [...recs, 'Durante a infância e adolescência, o acompanhamento por um pediatra é essencial para avaliar o crescimento adequadamente.'];
+    }
+
+    return recs;
+  }
+};
+
+// ═══════════════════════════════════════════
+// UTILITÁRIOS
+// ═══════════════════════════════════════════
+
+// Formata números no padrão brasileiro (vírgula decimal)
+const fmt = (n, dec = 1) =>
+  n.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: dec });
+
+// Escapa HTML para evitar injeção ao renderizar texto dinâmico
+function escapeHTML(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// Converte markdown simples (negrito e parágrafos) em HTML seguro
+function markdownLite(texto) {
+  return escapeHTML(texto)
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\n\n/g, '<br><br>')
+    .replace(/\n/g, '<br>');
+}
+
+// Anima o valor do IMC subindo até o alvo, como o visor de uma balança.
+// Respeita a preferência do usuário por movimento reduzido.
+function animateReadout(el, target) {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    el.textContent = target.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    return;
+  }
+  const dur = 750;
+  const t0 = performance.now();
+  function step(t) {
+    const p = Math.min(1, (t - t0) / dur);
+    const eased = 1 - Math.pow(1 - p, 3); // ease-out cúbico
+    el.textContent = (target * eased).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    if (p < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+// ═══════════════════════════════════════════
+// LÓGICA DO APP
+// ═══════════════════════════════════════════
+
+function setUnit(unit, btn) {
+  AppState.data.unit = unit;
+
+  // Ativa apenas o botão clicado dentro do seu próprio grupo
+  btn.parentElement.querySelectorAll('.unit-btn').forEach(b => {
+    const ativo = b === btn;
+    b.classList.toggle('active', ativo);
+    b.setAttribute('aria-pressed', ativo);
+  });
+
+  const cfg = unit === 'metric'
+    ? { peso: 'kg', altura: 'cm', phPeso: '70',  phAltura: '170' }
+    : { peso: 'lb', altura: 'ft', phPeso: '154', phAltura: '5.7' };
+
+  $('unit-peso').textContent = cfg.peso;
+  $('unit-altura').textContent = cfg.altura;
+  $('input-peso').placeholder = cfg.phPeso;
+  $('input-altura').placeholder = cfg.phAltura;
+
+  ['peso', 'altura', 'idade'].forEach(clearError);
+}
+
+function setSexo(sexo, btn) {
+  AppState.data.sexo = sexo;
+  btn.parentElement.querySelectorAll('.unit-btn').forEach(b => {
+    const ativo = b === btn;
+    b.classList.toggle('active', ativo);
+    b.setAttribute('aria-pressed', ativo);
+  });
+}
+
+function clearError(field) {
+  $(`row-${field}`)?.classList.remove('error');
+  const err = $(`err-${field}`);
+  if (err) { err.textContent = ''; err.classList.remove('visible'); }
+}
+
+function showError(field, msg) {
+  $(`row-${field}`)?.classList.add('error');
+  const err = $(`err-${field}`);
+  if (err) { err.textContent = msg; err.classList.add('visible'); }
+}
+
+function validateField(field) {
+  const val = $(`input-${field}`).value;
+  const result = Validators.validate(field, val, AppState.data.unit);
+  result.valid ? clearError(field) : showError(field, result.msg);
+  return result.valid;
+}
+
+function calcularIMC() {
+  if (!AppState.transition('validating')) return;
+
+  // Valida todos os campos (sem curto-circuito, para mostrar todos os erros)
+  const validos = ['peso', 'altura', 'idade'].map(validateField);
+  if (validos.includes(false)) {
+    AppState.transition('input');
+    return;
+  }
+
+  let peso   = parseFloat(Validators.normalize($('input-peso').value));
+  let altura = parseFloat(Validators.normalize($('input-altura').value));
+  const idade = parseInt($('input-idade').value, 10);
+
+  // Conversão para o sistema métrico (cálculo sempre em kg/cm)
+  if (AppState.data.unit === 'imperial') {
+    peso   *= 0.453592; // lb → kg
+    altura *= 30.48;    // ft → cm
+  }
+
+  const alturaM = altura / 100;
+  const imc = peso / (alturaM * alturaM);
+
+  const classificacao = DecisionTree.classify(imc, idade);
+  const recomendacoes = DecisionTree.getRecommendations(classificacao.cat, idade);
+
+  // Faixa de peso considerada saudável para a altura (referência adulta)
+  const pesoIdealMin = 18.5 * alturaM * alturaM;
+  const pesoIdealMax = 24.9 * alturaM * alturaM;
+
+  AppState.result = {
+    imc: Math.round(imc * 10) / 10,
+    classificacao, recomendacoes,
+    peso, altura, idade,
+    pesoIdealMin, pesoIdealMax
+  };
+
+  AppState.transition('result');
+  renderResult();
+}
+
+function renderResult() {
+  const { imc, classificacao, recomendacoes, peso, altura, pesoIdealMin, pesoIdealMax } = AppState.result;
+  const imperial = AppState.data.unit === 'imperial';
+
+  // Cor da categoria propagada via CSS custom properties
+  // (--cat-tint = mesma cor com ~9% de opacidade, em hex de 8 dígitos)
+  document.documentElement.style.setProperty('--cat-color', classificacao.hex);
+  document.documentElement.style.setProperty('--cat-tint', classificacao.hex + '18');
+
+  // Leitura principal — número sobe como o visor de uma balança
+  animateReadout($('imc-valor'), imc);
+  $('imc-categoria').textContent = classificacao.cat;
+  $('imc-range').textContent = `IMC ${classificacao.range} kg/m²`;
+
+  // Ponteiro da escala (pequeno delay para animar após a troca de tela)
+  $('scale-pointer').style.left = '0%';
+  setTimeout(() => { $('scale-pointer').style.left = classificacao.posPonteiro + '%'; }, 150);
+
+  // Estatísticas — exibidas na unidade escolhida pelo usuário
+  if (imperial) {
+    $('stat-peso').textContent      = fmt(peso / 0.453592, 1) + ' lb';
+    $('stat-altura').textContent    = fmt(altura / 30.48, 1) + ' ft';
+    $('stat-ideal-min').textContent = fmt(pesoIdealMin / 0.453592, 1) + ' lb';
+    $('stat-ideal-max').textContent = fmt(pesoIdealMax / 0.453592, 1) + ' lb';
+  } else {
+    $('stat-peso').textContent      = fmt(peso, 1) + ' kg';
+    $('stat-altura').textContent    = fmt(altura, 0) + ' cm';
+    $('stat-ideal-min').textContent = fmt(pesoIdealMin, 1) + ' kg';
+    $('stat-ideal-max').textContent = fmt(pesoIdealMax, 1) + ' kg';
+  }
+
+  // Recomendações (conteúdo estático interno, renderizado com escape por segurança)
+  $('recs-list').innerHTML = recomendacoes.map(r => `
+    <div class="rec-item">
+      <div class="rec-dot"></div>
+      <div class="rec-text">${escapeHTML(r)}</div>
+    </div>
+  `).join('');
+
+  // Sugestões de perguntas contextuais para o assistente
+  const sugestoesPorCategoria = {
+    'Abaixo do Peso':       ['Como ganhar peso de forma saudável?', 'Quais alimentos têm mais calorias boas?', 'Que exercícios me ajudam a ganhar massa?'],
+    'Muito Abaixo do Peso': ['Quando devo buscar um médico?', 'Quais são os riscos do baixo peso?'],
+    'Peso Normal':          ['Como manter meu peso ideal?', 'Quais exercícios posso fazer?', 'Como melhorar minha alimentação?'],
+    'Peso Adequado':        ['Como me manter saudável?', 'Quais esportes são recomendados para minha idade?'],
+    'Sobrepeso':            ['Como emagrecer de forma saudável?', 'O que devo evitar comer?', 'Quanto exercício devo fazer por semana?'],
+    'Obesidade Grau I':     ['Como começar a emagrecer?', 'Quais exames devo fazer?', 'Quais exercícios são seguros para mim?'],
+    'Obesidade Grau II':    ['Quais são os riscos de saúde?', 'Quando considerar cirurgia bariátrica?', 'Como começar uma dieta com segurança?'],
+    'Obesidade Grau III':   ['O que é cirurgia bariátrica?', 'Quais complicações o peso causa?', 'Como pedir ajuda profissional?'],
+    'Obesidade':            ['Como criar hábitos saudáveis?', 'Quais atividades físicas são boas para minha idade?'],
+  };
+
+  const sugestoes = sugestoesPorCategoria[classificacao.cat] || sugestoesPorCategoria['Peso Normal'];
+  const sugContainer = $('ai-suggestions');
+  sugContainer.innerHTML = '';
+  sugestoes.forEach(texto => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'ai-sug';
+    chip.textContent = texto;
+    chip.addEventListener('click', () => {
+      $('ai-input').value = texto;
+      $('ai-input').focus();
+    });
+    sugContainer.appendChild(chip);
+  });
+
+  // Limpa estado anterior do assistente
+  $('ai-response').classList.remove('visible');
+  $('ai-response').innerHTML = '';
+  $('ai-input').value = '';
+
+  // Troca de tela
+  $('screen-input').classList.remove('active');
+  $('screen-result').classList.add('active');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function goBack() {
+  if (!AppState.transition('input')) return;
+  AppState.result = null;
+  $('screen-result').classList.remove('active');
+  $('screen-input').classList.add('active');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ═══════════════════════════════════════════
+// IA — Assistente de Saúde (API Anthropic)
+// ═══════════════════════════════════════════
+async function perguntarIA() {
+  const pergunta = $('ai-input').value.trim();
+  if (!pergunta || !AppState.result) return;
+  if (!AppState.transition('ai_query')) return;
+
+  const btn = $('ai-btn');
+  const spinner = $('ai-spinner');
+  const response = $('ai-response');
+
+  btn.disabled = true;
+  spinner.classList.add('visible');
+  response.classList.remove('visible');
+
+  const { imc, classificacao, peso, altura, idade } = AppState.result;
+  const sistema = `Você é um assistente educativo de saúde preventiva alinhado à ODS 3 da ONU.
+O usuário tem as seguintes características:
+- IMC: ${imc} (${classificacao.cat})
+- Peso: ${peso.toFixed(1)} kg | Altura: ${altura.toFixed(0)} cm | Idade: ${idade} anos
+- Sexo biológico: ${AppState.data.sexo === 'M' ? 'Masculino' : 'Feminino'}
+
+Responda de forma clara, educativa e empática. Baseie-se em evidências científicas. Seja objetivo (máx. 220 palavras).
+SEMPRE finalize lembrando que não substitui avaliação profissional. Escreva em português brasileiro.`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        system: sistema,
+        messages: [{ role: 'user', content: pergunta }]
+      })
+    });
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const data = await res.json();
+
+    // A resposta pode conter vários blocos — filtra apenas os de texto
+    const texto = (data.content || [])
+      .filter(bloco => bloco.type === 'text')
+      .map(bloco => bloco.text)
+      .join('\n')
+      .trim();
+
+    response.innerHTML = texto
+      ? markdownLite(texto)
+      : '<span class="ai-error">Não foi possível gerar uma resposta agora. Tente novamente.</span>';
+    response.classList.add('visible');
+    $('ai-input').value = '';
+  } catch (e) {
+    console.error('Erro no assistente de IA:', e);
+    response.innerHTML = '<span class="ai-error">Erro ao conectar com o assistente. Verifique sua conexão e tente novamente.</span>';
+    response.classList.add('visible');
+  } finally {
+    btn.disabled = false;
+    spinner.classList.remove('visible');
+    AppState.transition('result');
+  }
+}
+
+// ═══════════════════════════════════════════
+// EVENTOS (sem handlers inline no HTML)
+// ═══════════════════════════════════════════
+document.querySelectorAll('[data-unit]').forEach(btn =>
+  btn.addEventListener('click', () => setUnit(btn.dataset.unit, btn)));
+
+document.querySelectorAll('[data-sexo]').forEach(btn =>
+  btn.addEventListener('click', () => setSexo(btn.dataset.sexo, btn)));
+
+['peso', 'altura', 'idade'].forEach(field => {
+  const input = $(`input-${field}`);
+  input.addEventListener('input', () => validateField(field));
+  // Enter em qualquer campo dispara o cálculo
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); calcularIMC(); }
+  });
+});
+
+$('btn-calcular').addEventListener('click', calcularIMC);
+$('btn-voltar').addEventListener('click', goBack);
+$('ai-btn').addEventListener('click', perguntarIA);
+
+$('ai-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey && !$('ai-btn').disabled) {
+    e.preventDefault();
+    perguntarIA();
+  }
+});
+</script>
+</body>
+</html>
